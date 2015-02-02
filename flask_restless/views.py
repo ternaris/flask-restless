@@ -26,7 +26,6 @@ from __future__ import division
 from collections import defaultdict
 from functools import wraps
 import math
-import warnings
 
 from flask import current_app
 from flask import json
@@ -482,9 +481,8 @@ class API(ModelView):
     def __init__(self, session, model, exclude_columns=None,
                  include_columns=None, include_methods=None,
                  validation_exceptions=None, results_per_page=10,
-                 max_results_per_page=100, post_form_preprocessor=None,
-                 preprocessors=None, postprocessors=None, primary_key=None,
-                 *args, **kw):
+                 max_results_per_page=100, preprocessors=None,
+                 postprocessors=None, primary_key=None, *args, **kw):
         """Instantiates this view with the specified attributes.
 
         `session` is the SQLAlchemy session in which all database transactions
@@ -534,26 +532,6 @@ class API(ModelView):
         `max_results_per_page` results will be returned. For more information,
         see :ref:`serverpagination`.
 
-        .. deprecated:: 0.9.2
-           The `post_form_preprocessor` keyword argument is deprecated in
-           version 0.9.2. It will be removed in version 1.0. Replace code that
-           looks like this::
-
-               manager.create_api(Person, post_form_preprocessor=foo)
-
-           with code that looks like this::
-
-               manager.create_api(Person, preprocessors=dict(POST=[foo]))
-
-           See :ref:`processors` for more information and examples.
-
-        `post_form_preprocessor` is a callback function which takes
-        POST input parameters loaded from JSON and enhances them with other
-        key/value pairs. The example use of this is when your ``model``
-        requires to store user identity and for security reasons the identity
-        is not read from the post parameters (where malicious user can tamper
-        with them) but from the session.
-
         `preprocessors` is a dictionary mapping strings to lists of
         functions. Each key is the name of an HTTP method (for example,
         ``'GET'`` or ``'POST'``). Each value is a list of functions, each of
@@ -569,6 +547,9 @@ class API(ModelView):
         `model` has exactly one primary key, there is no need to provide a
         value for this. If `model` has two or more primary keys, you must
         specify which one to use.
+
+        .. versionchanged:: 1.0.0
+           Removed the deprecated ``post_form_preprocessor`` keyword argument.
 
         .. versionadded:: 0.13.0
            Added the `primary_key` keyword argument.
@@ -624,13 +605,6 @@ class API(ModelView):
         self.preprocessors = defaultdict(list)
         self.postprocessors.update(upper_keys(postprocessors or {}))
         self.preprocessors.update(upper_keys(preprocessors or {}))
-        # move post_form_preprocessor to preprocessors['POST'] for backward
-        # compatibility
-        if post_form_preprocessor:
-            msg = ('post_form_preprocessor is deprecated and will be removed'
-                   ' in version 1.0; use preprocessors instead.')
-            warnings.warn(msg, DeprecationWarning)
-            self.preprocessors['POST'].append(post_form_preprocessor)
         # postprocessors for PUT are applied to PATCH because PUT is just a
         # redirect to PATCH
         for postprocessor in self.postprocessors['PUT_SINGLE']:
