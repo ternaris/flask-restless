@@ -62,6 +62,19 @@ class TestLocalAPIManager(DatabaseTestBase):
         self.Computer = Computer
         self.Base.metadata.create_all()
 
+    def test_delayed_blueprint_registration(self):
+        """Test for creating a blueprint before registering it on the Flask
+        application.
+
+        """
+        # Create an API Manager and an API blueprint without having access to a
+        # Flask application. Then register the blueprint on the app.
+        manager = APIManager(session=self.session)
+        blueprint = manager.create_api_blueprint(self.Person)
+        self.flaskapp.register_blueprint(blueprint)
+        response = self.app.get('/api/person')
+        assert response.status_code == 200
+
     def test_url_for(self):
         manager = APIManager(self.flaskapp, session=self.session)
         manager.create_api(self.Person, collection_name='people')
