@@ -172,79 +172,66 @@ like ``http://<host>:<port>/api/person/foo`` instead of
 Initializing the Flask application after creating the API manager
 -----------------------------------------------------------------
 
+.. versionchanged:: 0.18.0
+
+   In previous versions, Flask-Restless allowed calling
+   :meth:`APIManager.init_app` *before* calling
+   :meth:`APIManager.create_api`. Until version 0.16.0, this was acceptable
+   because Flask-Restless was incorrectly using the ``init_app()`` idiom
+   expected from Flask extensions. In version 0.16.0, we attempted to fix this
+   incorrect usage and in doing so introduced some poor API design to the
+   library. This was rectified in version 0.18.0 by requiring that
+   :meth:`~APIManager.create_api` is called *before*
+   :meth:`~APIManager.init_app`.
+
 Instead of providing the Flask application at instantiation time, you can
 initialize the Flask application after instantiating the :class:`APIManager`
 object by using the :meth:`APIManager.init_app` method. If you do this, you
-will need to provide the Flask application object using the ``app`` keyword
-argument to the :meth:`APIManager.create_api` method::
+must make any calls to :meth:`APIManager.create_api` *before* making the call
+to :meth:`APIManager.init_app`::
 
     from flask import Flask
     from flask.ext.restless import APIManager
     from flask.ext.sqlalchemy import SQLAlchemy
 
-    app = Flask(__name__)
-    db = SQLAlchemy(app)
+    db = SQLAlchemy()
     manager = APIManager(flask_sqlalchemy_db=db)
+    manager.create_api(Person)
 
     # later...
 
+    app = Flask(__name__)
+    db.init_app(app)
     manager.init_app(app)
-    manager.create_api(Person, app=app)
 
 You can also use this approach to initialize multiple Flask applications with a
-single instance of :class:`APIManager`. For example::
+single instance of :class:`APIManager`. In this case, the :class:`APIManager`
+object stashes any blueprints created by calls to
+:meth:`~APIManager.create_api` and registers them on the next call to
+:meth:`~APIManager.init_app`. For example::
 
     from flask import Flask
     from flask.ext.restless import APIManager
     from flask.ext.sqlalchemy import SQLAlchemy
+
+    db = SQLAlchemy()
+    manager = APIManager(flask_sqlalchemy_db=db)
+
+    class Person(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+
+    class Computer(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+
+    db.create_all()
 
     # Create two Flask applications, both backed by the same database.
     app1 = Flask(__name__)
     app2 = Flask(__name__ + '2')
     app1.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
     app2.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
-    db = SQLAlchemy(app1)
 
-    # Create the Flask-SQLAlchemy models.
-    class Person(db.Model):
-        id = db.Column(db.Integer, primary_key=True)
-        name = db.Column(db.Unicode, unique=True)
-        birth_date = db.Column(db.Date)
-        computers = db.relationship('Computer',
-                                    backref=db.backref('owner',
-                                                       lazy='dynamic'))
-
-
-    class Computer(db.Model):
-        id = db.Column(db.Integer, primary_key=True)
-        name = db.Column(db.Unicode, unique=True)
-        vendor = db.Column(db.Unicode)
-        owner_id = db.Column(db.Integer, db.ForeignKey('person.id'))
-        purchase_time = db.Column(db.DateTime)
-
-
-    # Create the database tables.
-    db.create_all()
-
-    # Create the APIManager and initialize it with the different Flask objects.
-    manager = APIManager(flask_sqlalchemy_db=db)
-    manager.init_app(app1)
-    manager.init_app(app2)
-
-    # When creating each API, you need to specify which Flask application
-    # should be handling these requests.
-    manager.create_api(Person, app=app1)
-    manager.create_api(Computer, app=app2)
-
-Finally, you can also create an API *before* initializing the Flask
-application. For example::
-
-    manager = APIManager()
     manager.create_api(Person)
-    manager.init_app(app, session=session)
-
-.. versionchanged:: 0.16.0
-   The :meth:`APIManager.init_app` method behaved incorrectly before version
-   0.16.0. From that version on, you must provide the Flask application when
-   you call :meth:`APIManager.create_api` after having performed the delayed
-   initialization described in this section.
+    manager.init_app(app1)
+    manager.create_api(Computer)
+    manager.init_app(app2)

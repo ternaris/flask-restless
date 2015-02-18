@@ -20,6 +20,13 @@ Version 0.17.1-dev
 
 Not yet released.
 
+- #397: allows delayed registration of API blueprints. (This somewhat reverts
+  the changes that purportedly fixed #313 and #389 in version 0.16.0 below;
+  those changes allowed the use of the ``init_app()`` idiom, but removed the
+  possibility of creating a blueprint using
+  :meth:`APIManager.create_api_blueprint` and registering it on a
+  :class:`flask.Flask` object later.)
+
 Version 0.17.0
 --------------
 

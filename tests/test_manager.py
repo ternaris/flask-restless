@@ -90,36 +90,39 @@ class TestLocalAPIManager(DatabaseTestBase):
                           relationinstid=2)
             assert url.endswith('/api/people/1/computers/2')
 
-    def test_init_app(self):
+    def test_delayed_blueprint_registration(self):
+        """Test for creating a blueprint before registering it on the Flask
+        application.
+
+        """
+        # Create an API Manager and an API blueprint without having access to a
+        # Flask application. Then register the blueprint on the app.
+        manager = APIManager(session=self.session)
+        blueprint = manager.create_api_blueprint(self.Person)
+        self.flaskapp.register_blueprint(blueprint)
+        response = self.app.get('/api/person')
+        assert response.status_code == 200
+
+    def test_multiple_apps(self):
         """Tests for initializing the Flask application after instantiating the
         :class:`flask.ext.restless.APIManager` object.
 
         """
-        manager = APIManager(session=self.session)
-        manager.create_api(self.Person)
-        manager.init_app(self.flaskapp)
-        response = self.app.get('/api/person')
-        assert response.status_code == 200
-
-    def test_init_app_split_initialization(self):
-        manager = APIManager(session=self.session)
-        manager.create_api(self.Person)
-        manager.init_app(self.flaskapp)
-        response = self.app.get('/api/person')
-        assert response.status_code == 200
-
-    def test_init_multiple(self):
-        manager1 = APIManager(session=self.session)
-        manager2 = APIManager(session=self.session)
-        flaskapp1 = self.flaskapp
-        flaskapp2 = Flask(__name__)
-        testclient1 = self.app
-        testclient2 = flaskapp2.test_client()
+        # Create two Flask application objects and two test clients.
+        app1 = self.flaskapp
+        app2 = Flask(__name__)
+        testclient1 = app1.test_client()
+        testclient2 = app2.test_client()
         force_json_contenttype(testclient2)
-        manager1.create_api(self.Person)
-        manager2.create_api(self.Computer)
-        manager1.init_app(flaskapp1)
-        manager2.init_app(flaskapp2)
+        # Create the manager, create two distinct APIs, and initialize the two
+        # apps so that one gets one API and the other gets the remaining API.
+        manager = APIManager(session=self.session)
+        manager.create_api(self.Person)
+        manager.init_app(app1)
+        manager.create_api(self.Computer)
+        manager.init_app(app2)
+        # The first app should have the person API and the second the computer
+        # API.
         response = testclient1.get('/api/person')
         assert response.status_code == 200
         response = testclient1.get('/api/computer')
@@ -129,40 +132,12 @@ class TestLocalAPIManager(DatabaseTestBase):
         response = testclient2.get('/api/computer')
         assert response.status_code == 200
 
-    def test_creation_api_without_app_dependency(self):
+    def test_create_api_before_init_app(self):
         """Tests that api can be added before app will be passed to manager."""
         manager = APIManager(session=self.session)
         manager.create_api(self.Person)
         manager.init_app(self.flaskapp)
         response = self.app.get('/api/person')
-        assert response.status_code == 200
-
-    def test_multiple_app_delayed_init(self):
-        manager1 = APIManager(session=self.session)
-        manager2 = APIManager(session=self.session)
-
-        # Create the Flask applications and the test clients.
-        flaskapp1 = self.flaskapp
-        flaskapp2 = Flask(__name__)
-        testclient1 = self.app
-        testclient2 = flaskapp2.test_client()
-        force_json_contenttype(testclient2)
-
-        # First create the API, then initialize the Flask applications after.
-        manager1.create_api(self.Person)
-        manager2.create_api(self.Computer)
-        manager1.init_app(flaskapp1)
-        manager2.init_app(flaskapp2)
-
-        # Tests that only the first Flask application gets requests for
-        # /api/person and only the second gets requests for /api/computer.
-        response = testclient1.get('/api/person')
-        assert response.status_code == 200
-        response = testclient1.get('/api/computer')
-        assert response.status_code == 404
-        response = testclient2.get('/api/person')
-        assert response.status_code == 404
-        response = testclient2.get('/api/computer')
         assert response.status_code == 200
 
     def test_universal_preprocessor(self):
