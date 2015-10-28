@@ -318,6 +318,12 @@ class DefaultSerializer(Serializer):
             # the object is a mapped class.
             if is_mapped_class(type(v)):
                 attributes[k] = simple_serialize(v)
+            # Convert date, time, and datetime objects to ISO 8601 format.
+            elif isinstance(v, (datetime.date, datetime.time)):
+                attributes[k] = v.isoformat()
+            # Convert UUIDs to hexadecimal strings.
+            elif isinstance(v, uuid.UUID):
+                attributes[k] = str(v)
         # Get the ID and type of the resource.
         id_ = attributes.pop('id')
         type_ = collection_name(model)
@@ -360,6 +366,7 @@ class DefaultSerializer(Serializer):
         # Check for objects in the dictionary that may not be serializable by
         # default.
         for key, value in result.items():
+            # TODO: should this be done right in-place when generating the result?
             # Convert date, time, and datetime objects to ISO 8601 format.
             if isinstance(value, (datetime.date, datetime.time)):
                 result[key] = value.isoformat()
